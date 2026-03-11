@@ -1,7 +1,7 @@
 import { auth, db } from './firebase'
-import { collection, query, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useEffect, useReducer, useState } from 'react'
-import type { Product, Drink, Nut, CartItem, Category } from './types';
+import type { Product, CartItem, Category } from './types';
 import { 
   IconButton, 
   Typography, 
@@ -46,6 +46,12 @@ type CartAction =
   | { type: 'CLEAR_CART' }
   | { type: 'SET_CART'; items: CartItem[]}
 
+type ProductAction = 
+| { type: 'ADD_PRODUCT'; product: Product }
+| { type: 'SET_PRODUCTS'; products: Product[] }
+| { type: 'UPDATE_PRODUCT'; product: Product }
+| { type: 'DELETE_PRODUCT'; id: string}
+
 function CartReducer(state: any[], action: CartAction): any[] {
   switch (action.type) {
     case 'ADD_ITEM':
@@ -80,8 +86,25 @@ function CartReducer(state: any[], action: CartAction): any[] {
     default:
       return state
   }
+}
 
+function ProductsReducer (state: Product[], action: ProductAction): Product[] {
+  switch(action.type) {
+    case 'ADD_PRODUCT':
+      return [...state, action.product]
 
+    case 'SET_PRODUCTS':
+      return action.products
+
+    case 'DELETE_PRODUCT':
+      return state.filter(p => p.id !== action.id)
+
+    case 'UPDATE_PRODUCT':
+      return state.map(p => p.id === action.product.id ? action.product : p )
+    
+      default:
+        return state
+  }
 }
 
 function App() {
@@ -109,10 +132,8 @@ function App() {
     setCustomerInfo(prev => ({ ...prev, [name]: value}));
   }
 
-  const [products, setProducts] = useState<Product[]>(() => {
-    const saved = localStorage.getItem('myProducts')
-    return saved ? JSON.parse(saved) : productsData
-  })
+  const [products, productsDispatch] = useReducer(ProductsReducer, [])
+
   const [orders, setOrders] = useState<any[]>([])
   const [showExpensive, setShowExpensive] = useState<boolean>(false);
   const [openSnackBar, setOpenSnackBar] = useState<boolean>(false)
@@ -128,12 +149,15 @@ function App() {
     return saved ? JSON.parse(saved) : []
   })
 
-  const updateProduct = (updatedProduct: Product) => {
-    setProducts(prev => prev.map(p =>
-      p.id === updatedProduct.id ? updatedProduct : p
-    ))
-    setOpenSnackBar(true)
-    setLastAddedItem(`Оновлено: "${updatedProduct.title}" ✅`)
+  const updateProduct = async (updatedProduct: Product) => {
+    try {
+      const productRef = doc(db, 'products', updatedProduct.id);
+      await updateDoc(productRef, { ...updatedProduct })
+      setOpenSnackBar(true)
+      setLastAddedItem(`Оновлено: "${updatedProduct.title}"✅`)
+    } catch(error) {
+      console.error('Помилка оновлення:', error)
+    }
   };
 
   const deleteProduct = async (id: string) => {
@@ -242,7 +266,7 @@ function App() {
       querySnapshot.forEach((doc) => {
         productsArray.push({ ...doc.data(), id: doc.id})
       })
-      setProducts(productsArray)
+      productsDispatch({ type: 'SET_PRODUCTS', products: productsArray})
       setIsLoading(false)
     })
     return () => unsubscribe()
