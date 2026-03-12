@@ -1,7 +1,7 @@
 import { auth, db } from './firebase'
 import { collection, query, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useEffect, useReducer, useState } from 'react'
-import type { Product, CartItem, Category } from './types';
+import type { Product, Category } from './types';
 import { 
   IconButton, 
   Typography, 
@@ -36,57 +36,15 @@ import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { LoginPage } from './pages/LoginPage';
 import { ProductSkeleton } from './components/ProductSkeleton';
 import { AnalyticsPage } from './pages/AnalyticsPage';
+import { useCart } from './context/CartContext';
 
 const productsData: Product[] = [];
-
-type CartAction = 
-  | { type: 'ADD_ITEM'; product: Product}
-  | { type: 'REMOVE_ITEM'; id: string}
-  | { type: 'UPDATE_QUANTITY'; id: string; delta: number }
-  | { type: 'CLEAR_CART' }
-  | { type: 'SET_CART'; items: CartItem[]}
 
 type ProductAction = 
 | { type: 'ADD_PRODUCT'; product: Product }
 | { type: 'SET_PRODUCTS'; products: Product[] }
 | { type: 'UPDATE_PRODUCT'; product: Product }
 | { type: 'DELETE_PRODUCT'; id: string}
-
-function CartReducer(state: any[], action: CartAction): any[] {
-  switch (action.type) {
-    case 'ADD_ITEM':
-      const existing = state.find(item => item.id === action.product.id)
-      if (existing) {
-        return state.map(item =>
-          item.id === action.product.id
-            ? {...item, quantity: (item.quantity || 1) + 1}
-            : item
-        )
-      }
-      return [...state, {...action.product, quantity: 1 }]
-
-    case 'REMOVE_ITEM':
-      return state.filter(item => item.id !== action.id)
-
-    case 'CLEAR_CART': 
-      return []
-
-    case 'SET_CART':
-      return action.items
-
-    case 'UPDATE_QUANTITY':
-      return state.map(item => {
-        if (item.id === action.id) {
-          const newQty = (item.quantity || 1) + action.delta
-          return { ...item, quantity: newQty < 1 ? 1 : newQty}
-        }
-        return item
-      })
-
-    default:
-      return state
-  }
-}
 
 function ProductsReducer (state: Product[], action: ProductAction): Product[] {
   switch(action.type) {
@@ -108,12 +66,13 @@ function ProductsReducer (state: Product[], action: ProductAction): Product[] {
 }
 
 function App() {
+  const { cartItems, dispatch, totalPrice, totalQuantity } = useCart()
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [user, setUser] = useState<User | null>(null)
   const [currentCategory, setCurrentCategory] = useState<string>('all')
   const [sortBy, setSortBy] = useState<string>('')
   const [searchQuery, setSearchQuery] = useState<string>('')
-  const [isOrderModalOpen, setIsOrderModalOpen] = useState<boolean>(false)
+  const {isOrderModalOpen, setIsOrderModalOpen} = useCart()
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
     phone: '',
@@ -139,16 +98,6 @@ function App() {
   const [openSnackBar, setOpenSnackBar] = useState<boolean>(false)
   const [lastAddedItem, setLastAddedItem] = useState<string>('')
 
-  // const [cartItems, setCartItems] = useState<CartItem[]>(() => {
-  //   const saved = localStorage.getItem('as_shop_cart')
-  //   return saved ? JSON.parse(saved) : []
-  // });
-
-  const [cartItems, dispatch] = useReducer(CartReducer, [], () => {
-    const saved = localStorage.getItem('as_shop_cart')
-    return saved ? JSON.parse(saved) : []
-  })
-
   const updateProduct = async (updatedProduct: Product) => {
     try {
       const productRef = doc(db, 'products', updatedProduct.id);
@@ -173,9 +122,6 @@ function App() {
     await deleteDoc(doc(db, "products", id))
     }
   }
-
-  const totalPrice = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
-  const totalQuantity = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     const savedTheme = localStorage.getItem('myTheme')
@@ -208,10 +154,6 @@ function App() {
   useEffect(() => {
     localStorage.setItem('myTheme', String(darkMode))
   }, [darkMode])
-  
-  useEffect(() => {
-    localStorage.setItem('as_shop_cart', JSON.stringify(cartItems))
-  }, [cartItems])
 
   useEffect(() => {
     localStorage.setItem('myProducts', JSON.stringify(products))
@@ -406,13 +348,7 @@ function App() {
                 )
               }/>
               <Route path='/cart' element={
-                <CartPage 
-                  cartItems={cartItems}
-                  totalPrice={totalPrice}
-                  onOpenOrder={() => setIsOrderModalOpen(true)}
-                  onChangeQuantity={changeQuantity}
-                  onRemove={removeFromCart}
-                />
+                <CartPage />
               }/>
               <Route path="/product/:id" element={
                 <ProductPage products={products} onBuy={addToCart} />

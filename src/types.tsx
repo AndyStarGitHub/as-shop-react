@@ -36,3 +36,10 @@ export interface Category {
   name: string;
   slug?: string;
 }
+
+export type CartAction = 
+  | { type: 'ADD_ITEM'; product: Product}
+  | { type: 'REMOVE_ITEM'; id: string}
+  | { type: 'UPDATE_QUANTITY'; id: string; delta: number }
+  | { type: 'CLEAR_CART' }
+  | { type: 'SET_CART'; items: CartItem[]}

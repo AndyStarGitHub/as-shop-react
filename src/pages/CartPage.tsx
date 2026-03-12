@@ -1,7 +1,19 @@
-import { Box, Button, Paper, List, ListItemText, ListItem, Typography, IconButton } from "@mui/material"
+import { Box, Button, Paper, List, ListItemText, ListItem, Typography, IconButton, useScrollTrigger } from "@mui/material"
 import DeleteIcon from '@mui/icons-material/Delete'; 
+import { useCart } from '../context/CartContext'
 
-export const CartPage = ({ cartItems, totalPrice, onOpenOrder, onChangeQuantity, onRemove }: any ) => {
+export const CartPage = () => {
+  const { cartItems, totalPrice, dispatch, setIsOrderModalOpen } = useCart()
+  const handleUpdate = (id: string, delta: number) => {
+    dispatch({ type: 'UPDATE_QUANTITY', id, delta })
+  }
+
+  const handleRemove = (id: string) => {
+    if (window.confirm('Видалити цей скарб?')) {
+      dispatch({ type: 'REMOVE_ITEM', id })
+    }
+  }
+
   if (cartItems.length === 0) return <Typography sx={{ p: 3 }}> Кошик порожній </Typography>
 
   
@@ -16,22 +28,28 @@ export const CartPage = ({ cartItems, totalPrice, onOpenOrder, onChangeQuantity,
             <ListItem 
               key={item.id} divider
                 secondaryAction={
-                <IconButton edge='end' aria-label='delete' onClick={() => onRemove(item.id)} color='error'>
+                <IconButton edge='end' aria-label='delete' onClick={() => handleRemove(item.id)} color='error'>
                     <DeleteIcon/>
                 </IconButton>     
                 }       
             >
               <ListItemText primary={item.title} secondary={`${item.price * item.quantity} грн`}></ListItemText>
               <div style={{ display: 'flex', alignItems: 'center', marginRight: '40px' }}>
-                <Button size='small' onClick={() => onChangeQuantity(item.id, -1)}>-</Button>
+                <Button size='small' onClick={() => handleUpdate(item.id, -1)}>-</Button>
                 <Typography sx={{ mx: 2 }}>{item.quantity}</Typography>
-                <Button size='small' onClick={() => onChangeQuantity(item.id, 1)}>+</Button>
+                <Button size='small' onClick={() => handleUpdate(item.id, 1)}>+</Button>
               </div>
             </ListItem>
           ))}
         </List>
         <Typography variant="h6">Разом: {totalPrice} грн</Typography>
-        <Button variant='contained' color='success' fullWidth onClick={onOpenOrder} sx={{ mt: 2 }}>
+        <Button 
+          variant='contained' 
+          color='success' 
+          fullWidth 
+          onClick={() => setIsOrderModalOpen(true)} 
+          sx={{ mt: 2 }}
+        >
           Оформити замовлення
         </Button>
       </Paper>
