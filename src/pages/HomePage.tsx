@@ -1,9 +1,10 @@
 import { Grid, Button, Container, Typography, Stack, TextField, FormControl, InputLabel, Select, MenuItem, Box, Tabs, Tab } from "@mui/material"
 import { ProductItem } from "../components/ProductItem"
+import { useCategories } from "../context/CategoriesContext"
+import type { Category } from "../types"
 
 export const HomePage = ({ 
     products, 
-    allCategories,
     onBuy, 
     showExpensive, 
     setShowExpensive,
@@ -14,6 +15,10 @@ export const HomePage = ({
     currentCategory,
     setCurrentCategory
 }: any) => {
+
+  const { categories } = useCategories()
+
+  const categoriesToDisplay = ['all', ...categories.map((c: Category) => c.id)]
 
   const handleChange = (_event: React.SyntheticEvent, newValue: string) => {
     setCurrentCategory(newValue)
@@ -27,7 +32,7 @@ export const HomePage = ({
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={currentCategory} onChange={handleChange} centered>
-          {allCategories.map((cat: string) => (
+          {categoriesToDisplay.map((cat: string) => (
             <Tab
                 key={cat}
                 label={cat === 'all' ? 'Все' : cat.charAt(0).toUpperCase() + cat.slice(1)}

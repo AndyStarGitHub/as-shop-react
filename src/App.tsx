@@ -37,6 +37,7 @@ import { LoginPage } from './pages/LoginPage';
 import { ProductSkeleton } from './components/ProductSkeleton';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { useCart } from './context/CartContext';
+import { useCategories } from './context/CategoriesContext';
 
 const productsData: Product[] = [];
 
@@ -66,6 +67,7 @@ function ProductsReducer (state: Product[], action: ProductAction): Product[] {
 }
 
 function App() {
+  const categories = useCategories()
   const { cartItems, dispatch, totalPrice, totalQuantity } = useCart()
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [user, setUser] = useState<User | null>(null)
@@ -78,7 +80,6 @@ function App() {
     phone: '',
     address: ''
   })
-  const [categoriesList, setCategoriesList] = useState<any[]>([])
 
   const handleLogout = async () => {
     if (window.confirm('Вийти з акаунта адміна?')) {
@@ -131,18 +132,6 @@ function App() {
   const addProduct = async (newProduct: Product) => {
     await addDoc(collection(db, 'products'), newProduct)
   }
-
-  useEffect(() => {
-    const q = query(collection(db, 'categories'))
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const cats = snapshot.docs.map(doc => ({
-        id: doc.id, 
-        ...doc.data() 
-      })) as Category[]
-      setCategoriesList(cats)
-    })
-    return () => unsubscribe()
-  }, [])
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -334,7 +323,6 @@ function App() {
                 ) : (
                   <HomePage 
                     products={sortedProducts}
-                    allCategories={allCategories}
                     onBuy={addToCart}
                     showExpensive={showExpensive}
                     setShowExpensive={setShowExpensive}
@@ -360,7 +348,6 @@ function App() {
                   onUpdateProduct={updateProduct}
                   onDeleteProduct={deleteProduct}
                   products={products}
-                  categories={categoriesList}
                   cartItems={cartItems}
                 /> 
                 :<LoginPage />

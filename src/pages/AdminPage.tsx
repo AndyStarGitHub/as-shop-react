@@ -1,26 +1,35 @@
 import { Box, Button, Chip, Container, IconButton, MenuItem, Paper, Stack, TextField, Typography } from "@mui/material"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import EditIcon from '@mui/icons-material/Edit';
 import { ImageUploader } from '../components/ImageUploader'
 import type { Category } from "../types";
 import { deleteDoc, doc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
+import { useCategories } from '../context/CategoriesContext'
+import { useCart} from '../context/CartContext'
 
 export const AdminPage = ({ 
   onAddProduct, 
   onUpdateProduct, 
   onDeleteProduct, 
   products, 
-  categories, 
   cartItems 
 }: any) => {
   const [formData, setFormData] = useState({
     title: '',
     price: '',
-    category: 'fruits',
+    category: '',
     image: ''
   })
+
+  const { categories, isLoading } = useCategories()
+
+  useEffect(() => {
+    if (!isLoading && categories.length > 0 && !formData.category) {
+      setFormData(prev => ({ ...prev, category: categories[0].id }))
+    }
+  }, [isLoading, categories, formData.category]  )
 
   const [editingId, setEditingId] = useState<number | null>(null);
 
@@ -102,11 +111,20 @@ export const AdminPage = ({
       image: formData.image || `https://loremflickr.com/400/300/${formData.title.toLowerCase()}?lock=${Date.now()}`,
       }
       onAddProduct(newProduct)
-      setFormData({ title: '', price: '', category: 'fruits', image: '' })
+      setFormData({ 
+        title: '', 
+        price: '', 
+        category: categories[0]?.id || '', 
+        image: '' 
+      })
       alert('Товар додано')
     }
     navigate('/')
   }
+  
+  console.log("DEBUG: Categories from Context:", categories);
+  if (isLoading) return <Typography sx={{ mt: 4 }}>Синхронізація зі штабом...</Typography>
+
   return (
     <Container sx={{ mt: 4 }}>
 
