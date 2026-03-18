@@ -3,19 +3,21 @@ import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import EditIcon from '@mui/icons-material/Edit';
 import { ImageUploader } from '../components/ImageUploader'
-import type { Category } from "../types";
-import { deleteDoc, doc, setDoc } from "firebase/firestore";
+import type { Category, Product } from "../types";
+import { collection, deleteDoc, doc, setDoc, addDoc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { useCategories } from '../context/CategoriesContext'
 import { useCart} from '../context/CartContext'
+import { useProducts } from "../context/ProductContext";
 
 export const AdminPage = ({ 
-  onAddProduct, 
-  onUpdateProduct, 
-  onDeleteProduct, 
-  products, 
   cartItems 
 }: any) => {
+  const [adminSortBy, setAdminSortBy] = useState<string>('newest')
+  const [editCategoryId, setEditCategoryId] = useState<string | null>(null)
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [adminSearchQuery, setAdminSearcQuery] = useState('')
+  const { products, productsDispatch } = useProducts()
   const [formData, setFormData] = useState({
     title: '',
     price: '',
@@ -24,6 +26,14 @@ export const AdminPage = ({
   })
 
   const { categories, isLoading } = useCategories()
+
+  const toggleCategory = (categoryId: string) => {
+    setSelectedCategories(prev => 
+      prev.includes(categoryId) 
+        ? prev.filter(id => id !== categoryId)
+        : [ ...prev, categoryId]
+    )
+  }
 
   useEffect(() => {
     if (!isLoading && categories.length > 0 && !formData.category) {
@@ -54,6 +64,35 @@ export const AdminPage = ({
       }
     }
 
+  }
+
+  const handleEditCaterory = (cat: Category) => {
+    setEditCategoryId(cat.id)
+    setNewCatName(cat.name)
+  }
+
+  const handleSaveCategory = async () => {
+    if (!newCatName.trim()) return
+
+    try {
+      if (editCategoryId) {
+        await updateDoc(doc(db, 'categories', editCategoryId), {
+          name: newCatName
+        })
+        setEditCategoryId(null)
+        alert('Назву категорії змінено ✏️')
+      } else {
+        const categoryId = newCatName.toLowerCase().trim().replace(/\s+/g, '-')
+        await setDoc(doc(db, 'categories', categoryId), {
+          name: newCatName,
+          slug: categoryId
+        })
+        alert('Категорія додана! ✅')
+      }
+      setNewCatName('')
+    } catch (e) {
+      alert('Помилка при збереженні категорійки')
+    }
   }
 
   const handleAddCategory = async () => {
@@ -87,43 +126,67 @@ export const AdminPage = ({
     window.scrollTo({ top: 0, behavior: 'smooth'})
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (editingId) {
-      onUpdateProduct({
-        id: editingId,
+      const updateDate = {
         title: formData.title,
         price: Number(formData.price),
         category: formData.category,
         image: formData.image,
-        description: 'Оновлено через адмінку'
-      })
-      setEditingId(null)
-      alert('Зміни збережено')
-    } else {
-        const newProduct = {
-      id: Date.now(),
-      title: formData.title,
-      price: Number(formData.price),
-      category: formData.category,
-      description: 'Додано через Адмінку',
-      image: formData.image || `https://loremflickr.com/400/300/${formData.title.toLowerCase()}?lock=${Date.now()}`,
+        description: 'Оновлено в адмінці, контекст'
       }
-      onAddProduct(newProduct)
-      setFormData({ 
-        title: '', 
-        price: '', 
-        category: categories[0]?.id || '', 
-        image: '' 
-      })
-      alert('Товар додано')
+      try {
+        const productRef = doc(db, 'products', String(editingId))
+        await updateDoc(productRef, updateDate)
+        productsDispatch({
+          type: 'UPDATE_PRODUCT',
+          product: { id: String(editingId), ...updateDate } as Product
+        })
+        setEditingId(null)
+        alert('Дані продукту оновлено в базі (контекст)! 💰✨');
+      } catch(error) {
+        alert('Не вдалось оновити продукт в базі даних. ❌')
+      }
+    } else {
+      const newProductData = {
+        title: formData.title,
+        price: Number(formData.price),
+        category: formData.category,
+        image: formData.image || 'https://via.placeholder.com/150',
+        description: 'Додано через адмінку з контекстом'
+      }
+      try {
+        const docRef = await addDoc(collection(db, 'products'), newProductData)
+        productsDispatch({
+          type: 'ADD_PRODUCT',
+          product: { id: docRef.id, ...newProductData } as Product
+        })
+        alert('Продукт записано в базу ✅')
+      } catch(error) {
+        console.error('Помилка додавання', error)
+        alert('Йой. В базу не записалось... ❌')
+      }
     }
     navigate('/')
   }
   
   console.log("DEBUG: Categories from Context:", categories);
   if (isLoading) return <Typography sx={{ mt: 4 }}>Синхронізація зі штабом...</Typography>
+
+  const filteredProducts = products.filter((p: any) => {
+    const matchesCategory = selectedCategories.length === 0 || selectedCategories.includes(p.category)
+    const matchesSearch = p.title.toLowerCase().includes(adminSearchQuery.toLowerCase())
+    return matchesCategory && matchesSearch
+  })
+
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    if (adminSortBy === 'price-asc') return (a.price - b.price)
+    if (adminSortBy === 'price-desc') return (b.price - a.price)
+    if (adminSortBy === 'alpha') return (a.title.localeCompare(b.title))
+    return 0
+  })
 
   return (
     <Container sx={{ mt: 4 }}>
@@ -135,7 +198,13 @@ export const AdminPage = ({
           value={newCatName}
           onChange={(e) => setNewCatName(e.target.value)}
         />
-        <Button variant="contained" onClick={handleAddCategory}>Додати</Button>
+        <Button 
+          variant="contained" 
+          onClick={handleSaveCategory}
+          color={editCategoryId ? 'success' : 'primary'}
+        >
+          {editCategoryId ? 'Зберегти зміни ' : 'Додати'}
+        </Button>
       </Paper>
 
       <Box sx={{ mt: 3, mb: 4 }}>
@@ -143,23 +212,81 @@ export const AdminPage = ({
           Наявні категорії. Натисніть "x" для видалення порожніх
         </Typography>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+          <Chip 
+            label={`Всі (${products.length})`}
+            onClick={() => setSelectedCategories([])}
+            color={selectedCategories.length === 0 ? 'secondary' : 'default'} 
+            variant={selectedCategories.length === 0 ? 'filled' : 'outlined'}
+          />
+
           {categories.map((cat: Category) => {
             const productCount = products.filter((p: any) => p.category === cat.id).length
+            const isSelected = selectedCategories.includes(cat.id)
+
             return (
-              <Chip 
-                key={cat.id}
-                label={`${cat.name} (${productCount})`}
-                onDelete={() => handleDeleteCategory(cat.id, cat.name)}
-                color={productCount > 0 ? 'primary' : 'default'}
-                variant={productCount > 0 ? 'filled' : 'outlined'}
-                sx={{ fontweight: productCount > 0 ? 'bold' : 'normal'} }
-              />
+              <Box>
+                <Chip 
+                  key={cat.id}
+                  label={`${cat.name} (${productCount})` }
+                  onClick={() => toggleCategory(cat.id)}
+                  onDelete={() => handleDeleteCategory(cat.id, cat.name)}
+                  color={isSelected ? 'primary' : (productCount > 0 ? 'info' : 'default')}
+                  variant={isSelected ? 'filled' : 'outlined'}
+                  sx={{ fontWeight: isSelected ? 'bold' : 'normal' }}
+                />
+                <IconButton size="small" onClick={() => handleEditCaterory(cat)} >
+                  <EditIcon sx={{ fontSize: 16, color: '#888'}}/>
+                </IconButton>
+              </Box>
             )
-
           })}
-
         </Box>
       </Box>
+
+      <Stack>
+        <TextField 
+          fullWidth
+          size='small'
+          variant="outlined"
+          placeholder="🔍 Швиденький пошук товарчиків за назвою..."
+          value = {adminSearchQuery}
+          onChange={(e) => setAdminSearcQuery(e.target.value)}
+          sx={{ 
+            mb: 2, 
+            bgcolor: 'rgba(255, 255, 255, 0.05',
+            borderRadius: 1,
+            '& .MuiInputBase-input': {
+              color: '#aaaaaa'
+            },
+            '& .MuiInputBase-input::placeholder': {
+              color: '#888888',
+              opacity: 1,
+            },
+            '& .MuiOutlinedInput-root': {
+              '& fieldset': {
+                borderColor: '#555555'
+              }
+            }
+          }}
+        />
+
+        <TextField
+          select
+          size="small"
+          label='Сортувати'
+          value={adminSortBy}
+          onChange={(e) => setAdminSortBy(e.target.value)}
+          sx={{ minWidth: 200, bgcolor: 'rgba(255, 255, 255, 0.05)', '& .MuiInputLabel-root': { color: '#888'}}}
+          SelectProps={{
+            sx: {color: '#aaa'}
+          }}
+        >
+          <MenuItem value="newest">За замовчуванням</MenuItem>
+          <MenuItem value="price-asc">💸 Спочатку дешеві</MenuItem>
+          <MenuItem value="price-desc">💰 Спочатку дорожчі</MenuItem>
+          <MenuItem value="alpha">🔤 За алфавітом (А-Я)</MenuItem>    
+        </TextField>
+      </Stack>
 
       <Paper sx={{ p: 4, maxWidth: 500, mx: 'auto' }}>
         <Typography variant="h5" gutterBottom>
@@ -197,19 +324,6 @@ export const AdminPage = ({
                 </MenuItem>
               ))}
             </TextField>
-
-            {/* <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
-              {categories.map((cat: Category) => (
-                <Button 
-                  key={cat.id}
-                  variant="outlined"
-                  size='small'
-                  onClick={() => setFormData({...formData, category: cat.id})}
-                >
-                  {cat.name}
-                </Button>
-              ))}
-            </Box> */}
 
             <TextField 
               label='URL зображення'
@@ -267,7 +381,7 @@ export const AdminPage = ({
       </Typography>
       <Paper sx={{ p: 2, maxWidth: 600, mx: 'auto'}}>
         <Stack spacing={2}>
-          {products.map((product: any) => {
+          {sortedProducts.map((product: any) => {
             const isDisabled = cartItems.some((item: any) => item.id === product.id)
             return (
               <Box
@@ -305,7 +419,21 @@ export const AdminPage = ({
                   color="error"
                   size="small"
                   disabled={isDisabled}
-                  onClick={() => onDeleteProduct(product.id)}
+
+                  onClick={async () => {
+                    if (window.confirm(`Видалити "${product.title}"?`)) {
+                      try {
+                        const productRef = doc(db, 'products', String(product.id))
+                        await deleteDoc(productRef)
+                        productsDispatch({ type: 'DELETE_PRODUCT', id: String(product.id) })
+                        alert('Товар видалено з бази даних (контекст)! 🗑️✅');
+                      } catch(error) {
+                        console.error('Помилка видалення (контекст): ', error)
+                        alert('Не вдалося видалити з бази. Перевірте зв’язок. ❌');
+                      }
+
+                    }
+                  }}
                 >
                   Видалити
                 </Button>

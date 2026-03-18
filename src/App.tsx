@@ -1,7 +1,7 @@
 import { auth, db } from './firebase'
 import { collection, query, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useEffect, useReducer, useState } from 'react'
-import type { Product, Category } from './types';
+import type { Product } from './types';
 import { 
   IconButton, 
   Typography, 
@@ -38,38 +38,12 @@ import { ProductSkeleton } from './components/ProductSkeleton';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { useCart } from './context/CartContext';
 import { useCategories } from './context/CategoriesContext';
-
-const productsData: Product[] = [];
-
-type ProductAction = 
-| { type: 'ADD_PRODUCT'; product: Product }
-| { type: 'SET_PRODUCTS'; products: Product[] }
-| { type: 'UPDATE_PRODUCT'; product: Product }
-| { type: 'DELETE_PRODUCT'; id: string}
-
-function ProductsReducer (state: Product[], action: ProductAction): Product[] {
-  switch(action.type) {
-    case 'ADD_PRODUCT':
-      return [...state, action.product]
-
-    case 'SET_PRODUCTS':
-      return action.products
-
-    case 'DELETE_PRODUCT':
-      return state.filter(p => p.id !== action.id)
-
-    case 'UPDATE_PRODUCT':
-      return state.map(p => p.id === action.product.id ? action.product : p )
-    
-      default:
-        return state
-  }
-}
+import { useProducts } from './context/ProductContext';
 
 function App() {
   const categories = useCategories()
+  const { products, productsDispatch, isLoading: isProductLoading } = useProducts()
   const { cartItems, dispatch, totalPrice, totalQuantity } = useCart()
-  const [isLoading, setIsLoading] = useState<boolean>(true)
   const [user, setUser] = useState<User | null>(null)
   const [currentCategory, setCurrentCategory] = useState<string>('all')
   const [sortBy, setSortBy] = useState<string>('')
@@ -92,47 +66,16 @@ function App() {
     setCustomerInfo(prev => ({ ...prev, [name]: value}));
   }
 
-  const [products, productsDispatch] = useReducer(ProductsReducer, [])
-
   const [orders, setOrders] = useState<any[]>([])
   const [showExpensive, setShowExpensive] = useState<boolean>(false);
   const [openSnackBar, setOpenSnackBar] = useState<boolean>(false)
   const [lastAddedItem, setLastAddedItem] = useState<string>('')
-
-  const updateProduct = async (updatedProduct: Product) => {
-    try {
-      const productRef = doc(db, 'products', updatedProduct.id);
-      await updateDoc(productRef, { ...updatedProduct })
-      setOpenSnackBar(true)
-      setLastAddedItem(`Оновлено: "${updatedProduct.title}"✅`)
-    } catch(error) {
-      console.error('Помилка оновлення:', error)
-    }
-  };
-
-  const deleteProduct = async (id: string) => {
-
-    const isInCart = cartItems.some(item => item.id === id)
-
-    if (isInCart) {
-      alert('Неможливо видалити товар, він є в кошику у покупця. Спочатку попросіть користувача видалити його або дочекайтеся завершення замовлення.')
-      return
-    }
-  
-  if (window.confirm('Видалити з хмари?')) {
-    await deleteDoc(doc(db, "products", id))
-    }
-  }
 
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     const savedTheme = localStorage.getItem('myTheme')
     return savedTheme === 'true'
   })
   
-  const addProduct = async (newProduct: Product) => {
-    await addDoc(collection(db, 'products'), newProduct)
-  }
-
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser)
@@ -143,10 +86,6 @@ function App() {
   useEffect(() => {
     localStorage.setItem('myTheme', String(darkMode))
   }, [darkMode])
-
-  useEffect(() => {
-    localStorage.setItem('myProducts', JSON.stringify(products))
-  }, [products])
 
   const addToCart = (good: Product) => {
     setLastAddedItem(`${good.title} додано до кошика`)
@@ -161,20 +100,6 @@ function App() {
     }
   }
 
-  // Виносимо логіку фільтрації в окрему змінну для чистоти коду
-  const filteredProducts = products.filter(p => {
-    const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesPrice = showExpensive ? p.price > 400 : true
-    const matchesCategory = currentCategory === 'all' || p.category === currentCategory
-    return matchesSearch && matchesPrice && matchesCategory
-  });
-
-  const sortedProducts = [...filteredProducts].sort((a, b) => {
-    if (sortBy === 'asc') return a.price - b.price
-    if (sortBy === 'desc') return b.price - a.price
-    return 0
-  })
-
   const changeQuantity = (id: string, delta: number) => {
     dispatch({ type: 'UPDATE_QUANTITY', id, delta})
   }
@@ -187,21 +112,6 @@ function App() {
       }
     }
   })
-
-  const allCategories = ['all', ...Array.from(new Set(products.map((p => p.category))))] as string[]
-
-  useEffect(() => {
-    const q = query(collection(db, 'products'));
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const productsArray: any[] = [];
-      querySnapshot.forEach((doc) => {
-        productsArray.push({ ...doc.data(), id: doc.id})
-      })
-      productsDispatch({ type: 'SET_PRODUCTS', products: productsArray})
-      setIsLoading(false)
-    })
-    return () => unsubscribe()
-  }, [])
 
   useEffect(() => {
     const q = query(collection(db, 'orders'))
@@ -318,11 +228,10 @@ function App() {
           <Container sx={{ mt: 4, flex: 1 }}>
             <Routes>
               <Route path='/' element={
-                isLoading ? (
+                isProductLoading ? (
                   <ProductSkeleton />
                 ) : (
                   <HomePage 
-                    products={sortedProducts}
                     onBuy={addToCart}
                     showExpensive={showExpensive}
                     setShowExpensive={setShowExpensive}
@@ -344,10 +253,6 @@ function App() {
               <Route path='/admin' element={ user 
                 ?
                 <AdminPage 
-                  onAddProduct={addProduct} 
-                  onUpdateProduct={updateProduct}
-                  onDeleteProduct={deleteProduct}
-                  products={products}
                   cartItems={cartItems}
                 /> 
                 :<LoginPage />
