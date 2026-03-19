@@ -232,6 +232,7 @@ function App() {
                   <ProductSkeleton />
                 ) : (
                   <HomePage 
+                    orders = {orders}
                     onBuy={addToCart}
                     showExpensive={showExpensive}
                     setShowExpensive={setShowExpensive}

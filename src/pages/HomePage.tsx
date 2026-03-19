@@ -1,9 +1,13 @@
-import { Grid, Button, Container, Typography, Stack, TextField, FormControl, InputLabel, Select, MenuItem, Box, Tabs, Tab } from "@mui/material"
+import { Grid, Button, Container, Typography, Stack, TextField, FormControl, InputLabel, Select, MenuItem, Box, Tabs, Tab, Paper } from "@mui/material"
 import { ProductItem } from "../components/ProductItem"
 import { useCategories } from "../context/CategoriesContext"
 import type { Category } from "../types"
 import type { Product } from '../types'
 import { useProducts } from "../context/ProductContext"
+
+interface AnalyticsProps {
+  orders: any[]
+}
 
 export const HomePage = ({ 
     onBuy, 
@@ -14,7 +18,8 @@ export const HomePage = ({
     sortBy,
     setSortBy,
     currentCategory,
-    setCurrentCategory
+    setCurrentCategory,
+    orders
 }: any) => {
   const { products, isLoading } = useProducts() as { products: Product[], isLoading: boolean}
   console.log('Продукти з контексту на головній сторінці: ', products)
@@ -39,11 +44,57 @@ export const HomePage = ({
     setCurrentCategory(newValue)
   }
 
+  const productsPopularity = (orders || []).reduce((acc: Record<string, number>, order: any) => {
+    order.items.forEach((item: any) => {
+      acc[item.title] = (acc[item.title] || 0) + item.quantity
+    })
+    return acc
+  }, {})
+
+  const hitProducts = products
+    .filter(p => productsPopularity[p.title] > 0)
+    .sort((a, b) => (productsPopularity[b.title] || 0) - (productsPopularity[a.title] || 0))
+    .slice(0, 3)
+
   return (
     <Container>
       <Typography variant="h4" sx={{ my: 4, textAlign: 'center'}}>
         Вітрина товарів 
       </Typography>
+
+      {hitProducts.length > 0 && (
+        <Box sx={{ mb: 6, p: 3, bgcolor: '#fff9c4', borderRadius: 4, border: '2px dashed #fbc02d'}}>
+          <Typography>
+            🔥 Популярне зараз
+          </Typography>
+          <Grid container spacing={3}>
+            {hitProducts.map((product) => (
+              <Grid key={product.id} size={{ xs: 12, md: 4 }}>
+                <Paper sx={{ p: 2, position: 'relative', overflow: 'hidden', height: '100%'}}>
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 10,
+                      right: -30,
+                      bgcolor: 'error.main',
+                      color: 'white',
+                      px: 5,
+                      py: 0.5,
+                      transform: 'rotate(45deg)',
+                      fontSize: '0.75rem',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    HIT
+                  </Box>
+                  <Typography variant="h6">{product.title}</Typography>
+                  <Typography color="primary" sx={{ fontWeight: 'bold'}}>{product.price}грн</Typography>
+                </Paper>
+              </Grid>
+            ))}
+          </Grid>
+        </Box>
+      )}
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={currentCategory} onChange={handleChange} centered>

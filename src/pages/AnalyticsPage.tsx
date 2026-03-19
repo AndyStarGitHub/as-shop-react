@@ -22,6 +22,8 @@ export const AnalyticsPage = ({ orders }: AnalyticsProps) => {
   const { products } = useProducts()
   const { categories } = useCategories()
 
+  const [productSearchQuery, setProductSearchQuery] = useState('')
+
   const totalStockPositions = products.length
   const totalStockValue = products.reduce((sum,p) => sum + (Number(p.price) || 0), 0 )
 
@@ -124,6 +126,19 @@ const uncategorizedProducts = products.filter(p => {
   const categoryExists = categories.some(cat => cat.id === p.category)
   return !p.category || !categoryExists
 })
+
+const searchedProduct = products.find(p => 
+  p.title.toLocaleLowerCase() === productSearchQuery.toLocaleLowerCase().trim()
+)
+
+const productOrderStats = filteredOrders.reduce((acc, order) => {
+  const item = order.items.find((i: any) => i.title.toLowerCase() === productSearchQuery.toLowerCase().trim())
+  if (item) {
+    acc.count += item.quantity
+    acc.revenue += (item.price * item.quantity)
+  }
+  return acc
+}, {count: 0, revenue: 0})
 
 return (
   <Container sx={{ mt: 4, mb: 4 }}>
@@ -315,22 +330,61 @@ return (
                 </PieChart>
             </Paper>
 
+            <Paper sx={{ p: 3, mb: 4, bgcolor: 'background.default', border: '1px solid #e0e0e0'}}>
+              <Typography variant="h6" gutterBottom>🔍 Швидка перевірка товару</Typography>
+              <TextField 
+                fullWidth
+                size="small"
+                placeholder="Введіть точну назву товару (наприклад 'Яблуко Голден)"
+                value={productSearchQuery}
+                sx={{ mb: 2 }}
+                onChange={(e) => setProductSearchQuery(e.target.value)}
+              />
+              {productSearchQuery.trim() && (
+                <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
+                  {searchedProduct ? (
+                    <Grid container spacing={2}>
+                      <Grid size={{ xs: 6 }}>
+                        <Typography variant="body2" color="text.secondary">На складі (ціна):</Typography>
+                        <Typography variant="subtitle1"><b>{searchedProduct.price}</b></Typography>
+                      </Grid>
+                      <Grid size={{ xs: 6 }}>
+                         <Typography variant="body2" color="text.secondary">Продано за період:</Typography>     
+                         <Typography variant="subtitle1" color="primary"><b>{productOrderStats.count} шт.</b> ({productOrderStats.revenue} грн)</Typography>                  
+                      </Grid>
+                    </Grid>
+                  ) : (
+                    <Typography variant='body2' color='error'>Товар з такою назвою не знадено в каталозі</Typography>
+                  )}
+                </Box>
+              )}
+
+
+
+            </Paper>       
+
             <Typography variant="h5" sx={{ mt: 6, mb: 2 }}>🏆 Топ-5 товарів періоду</Typography>
             <Paper sx={{ p: 3 }}>
                 <Stack spacing={2}>
                 {topProducts.length > 0 ? (
                     topProducts.map((product, index) => (
-                        <Box key={product.name} sx={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        p: 1,
-                        borderBottom: index !== topProducts.length - 1 ? '1px solid #eee' : 'none'
-                        }}>
-                        <Typography><b>{index + 1}.</b>{product.name}</Typography>
-                        <Typography color="primary" sx={{ fontWeight: 'bold'}}>
-                            {product.count} шт.
-                        </Typography>
+                        <Box 
+                          key={product.name} 
+                          sx={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            p: 1,
+                            borderBottom: index !== topProducts.length - 1 ? '1px solid #eee' : 'none',
+                            cursor: 'pointer',
+                            '&:hover': {bgcolor: 'rgba(25, 118, 210, 0.05)'}
+                          }}
+                          onClick = {() => setProductSearchQuery(product.name)}  
+                        >
+                          <Typography><b>{index + 1}.</b>{product.name}</Typography>
+                          <Typography color="primary" sx={{ fontWeight: 'bold'}}>
+                              {product.count} шт.
+                          </Typography>
                         </ Box>
                     ))
                 ) : (

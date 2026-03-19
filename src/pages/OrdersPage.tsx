@@ -3,7 +3,6 @@ import { useEffect, useState } from "react"
 import { db } from "../firebase"
 import { Box, Button, Chip, Container, InputAdornment, Paper, Stack, Tab, Tabs, TextField, Typography } from "@mui/material"
 import SearchIcon from '@mui/icons-material/Search'
-// import { Dashboard } from "@mui/icons-material"
 import { Dashboard } from "../components/Dashboard"
 
 export const OrdersPage = () => {
