@@ -188,6 +188,11 @@ export const AdminPage = ({
     return 0
   })
 
+  const isFormValid =
+    formData.title.trim().length >=3 &&
+    Number(formData.price) > 0 &&
+    formData.category !== ''
+
   return (
     <Container sx={{ mt: 4 }}>
 
@@ -300,6 +305,12 @@ export const AdminPage = ({
               required
               value={formData.title}
               onChange={(e) => setFormData({...formData, title: e.target.value})}
+              error={formData.title.length > 0 && formData.title.trim().length < 3}
+              helperText={
+                formData.title.length > 0 && formData.title.trim().length < 3
+                  ? 'Назва не може бути менше 3 символів'
+                  : ''
+              }
             />
             <TextField 
               label="Ціна"
@@ -308,6 +319,12 @@ export const AdminPage = ({
               required
               value={formData.price}
               onChange={(e) => setFormData({...formData, price: e.target.value})}
+              error={formData.price !== '' && Number(formData.price) <= 0}
+              helperText={
+                formData.price !== '' && Number(formData.price) <= 0
+                  ? 'Ціна має бути більша 0'
+                  : ''
+              }
             />
 
             <TextField
@@ -317,6 +334,11 @@ export const AdminPage = ({
               required
               value={formData.category}
               onChange={(e) => setFormData({...formData, category: e.target.value})}
+              error={!formData.category && formData.title.length > 0}
+              helperText={!formData.category && formData.title.length > 0
+                ? 'Оберіть категорію зі списку'
+                : ''
+              }
             >
               {categories.map((cat: Category) => (
                 <MenuItem key={cat.id} value={cat.id}>
@@ -369,7 +391,13 @@ export const AdminPage = ({
               }}
             />
 
-            <Button type='submit' variant='contained' color='primary' size='large'>
+            <Button 
+              type='submit' 
+              variant='contained' 
+              color='primary' 
+              size='large'
+              disabled={!isFormValid}
+            >
               Додати на вітрину
             </Button>
           </Stack>

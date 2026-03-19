@@ -11,12 +11,20 @@ import {
 } from "@mui/material"
 import { useState } from "react"
 import { CartesianGrid, Cell, Line, LineChart, Pie, PieChart, Tooltip, XAxis, YAxis } from "recharts"
+import { useProducts } from "../context/ProductContext"
+import { useCategories } from "../context/CategoriesContext"
 
 interface AnalyticsProps {
   orders: any[]
 }
 
 export const AnalyticsPage = ({ orders }: AnalyticsProps) => {
+  const { products } = useProducts()
+  const { categories } = useCategories()
+
+  const totalStockPositions = products.length
+  const totalStockValue = products.reduce((sum,p) => sum + (Number(p.price) || 0), 0 )
+
   const today = new Date().toISOString().split('T')[0]
   const lastMonth = new Date()
   lastMonth.setDate(lastMonth.getDate() - 30)
@@ -94,8 +102,104 @@ const categoryData = Object.entries(categoryDataRaw).map(([name, value]) => ({
     name, value 
 }))
 
+const stockCategoryDataRaw = products.reduce((acc: any, p: any) => {
+  const category = categories.find((cat: any) => cat.id === p.category)
+  const canName = category ? category.name : 'Без категорії'
+  const price = Number(p.price) || 0
+
+  if (acc[canName]) {
+    acc[canName] += price
+  } else {
+    acc[canName] = price
+  }
+  return acc
+}, {})
+
+const stockCategoryData = Object.entries(stockCategoryDataRaw).map(([name, value]) => ({
+  name,
+  value
+}))
+
+const uncategorizedProducts = products.filter(p => {
+  const categoryExists = categories.some(cat => cat.id === p.category)
+  return !p.category || !categoryExists
+})
+
 return (
   <Container sx={{ mt: 4, mb: 4 }}>
+
+    <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold'}}>
+      📊 Аналітика та Склад      
+    </Typography>
+
+    <Typography variant="h5" sx={{ mt: 4, mb: 2 }}>
+      📦 Поточний склад
+    </Typography>
+    <Grid container spacing={3} sx={{ mb: 6 }}>
+      <Grid size={{ xs: 12, md: 6 }}>
+        <Paper sx={{ p: 3, textAlign: 'center', borderLeft: '8px solid #673ab7' }}>
+          <Typography variant="h6" color='text.secondary'>Усього товарів в базі</Typography>
+          <Typography variant="h4" sx={{ fontWeight: "bold"}}>{totalStockPositions}</Typography>
+        </Paper>
+      </Grid>
+      <Grid size={{ xs: 12, md: 6 }}>
+        <Paper sx={{ p: 3, textAlign: 'center', borderLeft: '8px solid #00bcd4' }}>
+          <Typography variant="h6" color='text.secondary'>Загальна вартість активів</Typography>
+          <Typography variant="h4" sx={{ fontWeight: "bold"}}>{totalStockValue.toLocaleString()} грн</Typography>
+        </Paper>
+      </Grid>
+
+      <Grid size={{ xs: 12, md: 8 }}>
+        <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <Typography variant="h6" gutterBottom sx={{ color: 'text.secondary'}}>
+            🍕 Розподіл вартості складу за категоріями (грн)
+          </Typography>
+          {stockCategoryData.length > 0 ? (
+            <PieChart width={400} height={250}>
+              <Pie
+                data={stockCategoryData}
+                cx='50%'
+                cy='50%'
+                innerRadius={60}
+                outerRadius={90}
+                paddingAngle={5}
+                dataKey='value'
+                label={(entry) => `${entry.name}`}
+              >
+                {stockCategoryData.map((_entry, index) => (
+                  <Cell key={`cell-${index}`} fill={['#0088fe', '#00c49f', '#ffbb28', '#FF8042', '#8884d8'][index % 5]}/>
+                ))}
+              </Pie>
+              <Tooltip contentStyle={{ borderRadius: '8px' }} formatter={(value) => `${value?.toLocaleString()} грн`}/>
+            </PieChart>
+          ) : (
+            <Typography color="text.secondary" sx={{ p: 5 }}>
+              На складі поки що немає товарів
+            </Typography>
+          )}
+        </Paper>
+      </Grid>
+    </Grid>
+
+    {uncategorizedProducts.length > 0 && (
+      <Paper sx={{ p: 2, mt: 2, bgcolor: 'error.light', color: 'error.contrastText' }}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
+          ⚠️ Знайдено товари без категорій ({uncategorizedProducts.length}):
+        </Typography>
+        <Box sx={{ mt: 1 }}>
+          {uncategorizedProducts.map((p, idx) => (
+            <Typography key={p.id} variant="body2">
+              {idx + 1}. <b>{p.title}</b> - {p.price} грн
+            </Typography>
+          ))}
+        </Box>
+        <Typography variant="caption" sx={{ display: 'block', mt: 1, opacity: 0.8 }}>
+          *Перейдіть в адмінку, щоб призначити їм правильну категорію
+        </Typography>
+      </Paper>
+    )}
+
+
     <Typography variant="h4" gutterBottom>📊 Аналітика продажів</Typography>
 
     <Paper sx={{ p:3, mb: 4 }}>
