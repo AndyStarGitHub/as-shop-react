@@ -1,4 +1,4 @@
-import { Box, Button, Paper, List, ListItemText, ListItem, Typography, IconButton, useScrollTrigger } from "@mui/material"
+import { Box, Button, Paper, List, ListItemText, ListItem, Typography, IconButton } from "@mui/material"
 import DeleteIcon from '@mui/icons-material/Delete'; 
 import { useCart } from '../context/CartContext'
 

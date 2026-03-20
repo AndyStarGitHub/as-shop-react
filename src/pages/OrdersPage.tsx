@@ -1,4 +1,4 @@
-import { collection, deleteDoc, onSnapshot, orderBy, query, updateDoc, doc, or } from "firebase/firestore"
+import { collection, deleteDoc, onSnapshot, orderBy, query, updateDoc, doc } from "firebase/firestore"
 import { useEffect, useState } from "react"
 import { db } from "../firebase"
 import { Box, Button, Chip, Container, Grid, InputAdornment, Paper, Stack, Tab, Tabs, TextField, Typography } from "@mui/material"
@@ -17,6 +17,128 @@ export const OrdersPage = () => {
     const matchesSearch = customerName.includes(searchTerm.toLocaleLowerCase()) || customerPhone.includes(searchTerm)
     return matchesSearch && matchesStatus
   })
+
+  // const handlePrint = (orderId: string) => {
+  //   const element = document.getElementById(`order-${orderId}`)
+  //   if (element) {
+  //     element.classList.add('print-section')
+  //     setTimeout(() => {
+  //       window.print()
+  //       element.classList.remove('print-section')
+  //     }, 100)  
+
+  //   } else {
+  //     console.error('Не вдалось знайти елемент для друку')
+  //   }
+  // }
+
+  const handlePrint = (orderId: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+
+    // 1. Створюємо нове вікно
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    if (!printWindow) return;
+
+    // 2. Формуємо вміст чека (чистий HTML)
+    const content = `
+        <html>
+          <head>
+            <title>Чек №${order.id.slice(0, 5)}</title>
+            <style>
+              body { 
+                font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+                padding: 40px; 
+                color: #222;
+                max-width: 400px; /* Робимо вузьким, як касовий чек */
+                margin: 0 auto;
+              }
+              .header { 
+                text-align: center; 
+                border-bottom: 1px dashed #ccc; 
+                padding-bottom: 20px; 
+                margin-bottom: 20px; 
+              }
+              .brand { font-size: 24px; font-weight: bold; letter-spacing: 1px; }
+              .order-num { font-size: 14px; color: #666; margin-top: 5px; }
+              
+              .section { margin-bottom: 15px; font-size: 14px; }
+              .section-title { font-weight: bold; text-transform: uppercase; font-size: 12px; color: #888; margin-bottom: 5px; }
+              
+              table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+              td { padding: 8px 0; border-bottom: 1px solid #f5f5f5; font-size: 14px; }
+              .qty { color: #666; font-size: 13px; }
+              .price { text-align: right; font-weight: 500; }
+
+              .total-row { 
+                margin-top: 20px; 
+                padding-top: 10px;
+                border-top: 2px solid #222; 
+                display: flex; 
+                justify-content: space-between; 
+                font-size: 20px; 
+                font-weight: bold; 
+              }
+              .footer { 
+                text-align: center; 
+                margin-top: 50px; 
+                font-size: 12px; 
+                color: #aaa;
+                border-top: 1px dashed #ccc;
+                padding-top: 20px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div class="brand">MY STORE ☕️</div>
+              <div class="order-num">Замовлення №${order.id.slice(0, 5)}</div>
+              <div style="font-size: 12px; color: #999;">${new Date().toLocaleString('uk-UA')}</div>
+            </div>
+            
+            <div class="section">
+              <div class="section-title">Клієнт</div>
+              <div><strong>${order.customer?.name}</strong></div>
+              <div>${order.customer?.phone}</div>
+              <div style="margin-top: 5px; font-style: italic;">📍 ${order.customer?.address || 'Самовивіз'}</div>
+            </div>
+
+            <div class="section">
+              <div class="section-title">Товари</div>
+              <table>
+                ${order.items?.map((item: any) => `
+                  <tr>
+                    <td>${item.title} <span class="qty">x${item.quantity}</span></td>
+                    <td class="price">${item.price * item.quantity} грн</td>
+                  </tr>
+                `).join('')}
+              </table>
+            </div>
+
+            <div class="total-row">
+              <span>РАЗОМ:</span>
+              <span>${order.total} грн</span>
+            </div>
+
+            <div class="footer">
+              Дякуємо, що ви з нами!<br>
+              Приходьте ще! 😊
+            </div>
+
+            <script>
+              window.onload = function() {
+                window.print();
+                window.onafterprint = function() { window.close(); };
+              };
+            </script>
+          </body>
+        </html>
+      `;
+
+    // 3. Записуємо контент у вікно і закриваємо потік запису
+    printWindow.document.write(content);
+    printWindow.document.close();
+  };
 
   useEffect(() => {
     const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'))
@@ -118,7 +240,11 @@ export const OrdersPage = () => {
 
       <Stack spacing={2}>
         {filteredOrders.map((order) => (
-          <Paper key={order.id} sx={{ p: 3, borderLeft: order.status === 'new' ? '5px solid #ed6c02' : '5px solid #2e7d32' }}>
+          <Paper 
+            key={order.id} 
+            id={`order-${order.id}`}
+            sx={{ p: 3, borderLeft: order.status === 'new' ? '5px solid #ed6c02' : '5px solid #2e7d32' }}
+          >
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
@@ -185,6 +311,15 @@ export const OrdersPage = () => {
                   }}
                 />
                 <Stack direction='row' spacing={1}>
+                  <Button
+                    variant="outlined"
+                    color='inherit'
+                    size='small'
+                    onClick={() => handlePrint(order.id)}
+                    startIcon={<Box component='span' sx={{ fontSize: '1.2rem'}}>🖨️</Box>}
+                  >
+                    Чек
+                  </Button>
                   {order.status === 'new' && (
                     <Button variant='contained' color='success' size='small' onClick={() => markAsDone(order.id)}>
                       Виконати

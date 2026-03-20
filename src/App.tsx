@@ -1,6 +1,6 @@
 import { auth, db } from './firebase'
-import { collection, query, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { useEffect, useReducer, useState } from 'react'
+import { collection, query, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useEffect, useState } from 'react'
 import type { Product } from './types';
 import { 
   IconButton, 
@@ -37,12 +37,12 @@ import { LoginPage } from './pages/LoginPage';
 import { ProductSkeleton } from './components/ProductSkeleton';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { useCart } from './context/CartContext';
-import { useCategories } from './context/CategoriesContext';
+// import { useCategories } from './context/CategoriesContext';
 import { useProducts } from './context/ProductContext';
 
 function App() {
-  const categories = useCategories()
-  const { products, productsDispatch, isLoading: isProductLoading } = useProducts()
+  // const categories = useCategories()
+  const { products, isLoading: isProductLoading } = useProducts()
   const { cartItems, dispatch, totalPrice, totalQuantity } = useCart()
   const [user, setUser] = useState<User | null>(null)
   const [currentCategory, setCurrentCategory] = useState<string>('all')
@@ -93,16 +93,16 @@ function App() {
     dispatch({ type: 'ADD_ITEM', product: good })
   }
 
-  const removeFromCart = (idToRemove: string) => {
-    const isConfirmed = window.confirm('Ви впевнені?')
-    if (isConfirmed) {
-      dispatch({ type: 'REMOVE_ITEM', id: idToRemove })
-    }
-  }
+  // const removeFromCart = (idToRemove: string) => {
+  //   const isConfirmed = window.confirm('Ви впевнені?')
+  //   if (isConfirmed) {
+  //     dispatch({ type: 'REMOVE_ITEM', id: idToRemove })
+  //   }
+  // }
 
-  const changeQuantity = (id: string, delta: number) => {
-    dispatch({ type: 'UPDATE_QUANTITY', id, delta})
-  }
+  // const changeQuantity = (id: string, delta: number) => {
+  //   dispatch({ type: 'UPDATE_QUANTITY', id, delta})
+  // }
 
   const theme = createTheme({
     palette: {

@@ -7,7 +7,7 @@ import type { Category, Product } from "../types";
 import { collection, deleteDoc, doc, setDoc, addDoc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { useCategories } from '../context/CategoriesContext'
-import { useCart} from '../context/CartContext'
+// import { useCart} from '../context/CartContext'
 import { useProducts } from "../context/ProductContext";
 
 export const AdminPage = ({ 
@@ -95,25 +95,25 @@ export const AdminPage = ({
     }
   }
 
-  const handleAddCategory = async () => {
-    if (!newCatName.trim()) return;
-    const categoryId = newCatName
-      .toLowerCase()
-      .trim()
-      .replace(/\s+/g, '-')
+  // const handleAddCategory = async () => {
+  //   if (!newCatName.trim()) return;
+  //   const categoryId = newCatName
+  //     .toLowerCase()
+  //     .trim()
+  //     .replace(/\s+/g, '-')
 
-    try {
-      await setDoc(doc(db, 'categories', categoryId), {
-        name: newCatName,
-        slug: categoryId
-      })
-      setNewCatName('')
-      alert('Категорія синхронізована! ✅')
-    } catch(e) {
-      console.error("Помилка штабного зв'язку!", e)
-      alert('Помилка при збереженні')
-    }
-  }
+  //   try {
+  //     await setDoc(doc(db, 'categories', categoryId), {
+  //       name: newCatName,
+  //       slug: categoryId
+  //     })
+  //     setNewCatName('')
+  //     alert('Категорія синхронізована! ✅')
+  //   } catch(e) {
+  //     console.error("Помилка штабного зв'язку!", e)
+  //     alert('Помилка при збереженні')
+  //   }
+  // }
 
   const handleEditClick = (product: any) => {
     setEditingId(product.id);

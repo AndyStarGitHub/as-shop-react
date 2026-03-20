@@ -5,9 +5,9 @@ import type { Category } from "../types"
 import type { Product } from '../types'
 import { useProducts } from "../context/ProductContext"
 
-interface AnalyticsProps {
-  orders: any[]
-}
+// interface AnalyticsProps {
+//   orders: any[]
+// }
 
 export const HomePage = ({ 
     onBuy, 
