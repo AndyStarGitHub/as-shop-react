@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 
 interface ProductProps{
   product: Product
-  onBuy: () => void
+  onBuy: (p: Product) => void
 }
 
 export const ProductItem = ({ product, onBuy }: ProductProps) => {
@@ -42,7 +42,10 @@ export const ProductItem = ({ product, onBuy }: ProductProps) => {
           variant="contained"
           fullWidth
           startIcon={<AddShoppingCartIcon />}
-          onClick={onBuy}
+          onClick={(e) => {
+            e.stopPropagation()
+            onBuy(product)
+          }}
         >
           Купити
         </Button>

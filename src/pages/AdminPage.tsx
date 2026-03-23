@@ -1,18 +1,23 @@
-import { Box, Button, Chip, Container, IconButton, MenuItem, Paper, Stack, TextField, Typography } from "@mui/material"
+import { Box, Button, Chip, Container, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, MenuItem, Paper, Stack, TextField, Typography } from "@mui/material"
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import EditIcon from '@mui/icons-material/Edit';
 import { ImageUploader } from '../components/ImageUploader'
 import type { Category, Product } from "../types";
-import { collection, deleteDoc, doc, setDoc, addDoc, updateDoc } from "firebase/firestore";
+import { collection, deleteDoc, doc, setDoc, addDoc, updateDoc, runTransaction, Transaction } from "firebase/firestore";
 import { db } from "../firebase";
 import { useCategories } from '../context/CategoriesContext'
-// import { useCart} from '../context/CartContext'
 import { useProducts } from "../context/ProductContext";
 
 export const AdminPage = ({ 
   cartItems 
 }: any) => {
+  const [isStockDialogOpen, setIsStockDialogOpen] = useState(false)
+  const [selectProductForStock, setSelectProductForStock] = useState<any>(null)
+  const [stockChangeAmount, setStockChangeAmount] = useState<number>(1)
+  const [stockNote, setStockNote] = useState('Купівля')
+  const [purchasePrice, setPurchasePrice] = useState<number>(0)
+
   const [adminSortBy, setAdminSortBy] = useState<string>('newest')
   const [editCategoryId, setEditCategoryId] = useState<string | null>(null)
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
@@ -22,7 +27,8 @@ export const AdminPage = ({
     title: '',
     price: '',
     category: '',
-    image: ''
+    image: '',
+    stock: '0'
   })
 
   const { categories, isLoading } = useCategories()
@@ -95,31 +101,12 @@ export const AdminPage = ({
     }
   }
 
-  // const handleAddCategory = async () => {
-  //   if (!newCatName.trim()) return;
-  //   const categoryId = newCatName
-  //     .toLowerCase()
-  //     .trim()
-  //     .replace(/\s+/g, '-')
-
-  //   try {
-  //     await setDoc(doc(db, 'categories', categoryId), {
-  //       name: newCatName,
-  //       slug: categoryId
-  //     })
-  //     setNewCatName('')
-  //     alert('Категорія синхронізована! ✅')
-  //   } catch(e) {
-  //     console.error("Помилка штабного зв'язку!", e)
-  //     alert('Помилка при збереженні')
-  //   }
-  // }
-
   const handleEditClick = (product: any) => {
     setEditingId(product.id);
     setFormData({
       title: product.title,
       price: String(product.price),
+      stock: String(product.stock),
       category: product.category,
       image: product.image || ''
     })
@@ -133,6 +120,7 @@ export const AdminPage = ({
       const updateDate = {
         title: formData.title,
         price: Number(formData.price),
+        stock: Number(formData.stock),
         category: formData.category,
         image: formData.image,
         description: 'Оновлено в адмінці, контекст'
@@ -140,10 +128,10 @@ export const AdminPage = ({
       try {
         const productRef = doc(db, 'products', String(editingId))
         await updateDoc(productRef, updateDate)
-        productsDispatch({
-          type: 'UPDATE_PRODUCT',
-          product: { id: String(editingId), ...updateDate } as Product
-        })
+        // productsDispatch({
+        //   type: 'UPDATE_PRODUCT',
+        //   product: { id: String(editingId), ...updateDate } as Product
+        // })
         setEditingId(null)
         alert('Дані продукту оновлено в базі (контекст)! 💰✨');
       } catch(error) {
@@ -153,6 +141,7 @@ export const AdminPage = ({
       const newProductData = {
         title: formData.title,
         price: Number(formData.price),
+        stock: Number(formData.stock),
         category: formData.category,
         image: formData.image || 'https://via.placeholder.com/150',
         description: 'Додано через адмінку з контекстом'
@@ -193,6 +182,52 @@ export const AdminPage = ({
     Number(formData.price) > 0 &&
     formData.category !== ''
 
+  const handleStockUpdate = async (product: any, change: number, note: string, price: number) => {
+    try {
+      await runTransaction( db, async(transaction) => {
+        const productRef = doc(db, 'products', product.id)
+        const productDoc = await transaction.get(productRef)
+        if (!productDoc.exists()) {
+          throw 'Товарчик не знайдено'
+        }
+        const currentStock = productDoc.data().stock || 0
+        const newStock = currentStock + change
+
+        if (newStock < 0) {
+          throw 'Недостатньо товарчику на складику'
+        }
+        transaction.update(productRef, { stock: newStock })
+        const logRef = doc(collection(db, 'inventory_logs'))
+        transaction.set(logRef, {
+          productId: product.id,
+          productTitle: product.title,
+          amount: change,
+          purchasePrice: price,
+          totalCost: Math.abs(change * price),
+          before: currentStock,
+          after: newStock,
+          type: change > 0 ? 'income' : 'outcome',
+          note: note,
+          createdAt: new Date()
+        })
+
+        productsDispatch({
+          type: 'UPDATE_PRODUCT',
+          product: { ...product, stock: (product.stock || 0 ) + change }
+        })
+
+        alert('Складик оновлено успішно ✅')
+      }
+      )
+
+
+
+    } catch(error) {
+      console.error('Транзакція провалилась', error)
+      alert(`Помилка: ${error}`)
+    }
+  }
+
   return (
     <Container sx={{ mt: 4 }}>
 
@@ -229,7 +264,7 @@ export const AdminPage = ({
             const isSelected = selectedCategories.includes(cat.id)
 
             return (
-              <Box>
+              <Box key={cat.id} sx={{ display: 'inline-flex', alignItems: 'center' }}>
                 <Chip 
                   key={cat.id}
                   label={`${cat.name} (${productCount})` }
@@ -312,6 +347,7 @@ export const AdminPage = ({
                   : ''
               }
             />
+
             <TextField 
               label="Ціна"
               type='number'
@@ -325,6 +361,21 @@ export const AdminPage = ({
                   ? 'Ціна має бути більша 0'
                   : ''
               }
+            />
+
+            <TextField 
+              label='Кількість на складі'
+              type="number"
+              fullWidth
+              required
+              value={formData.stock}
+              slotProps={{
+                input: {
+                  readOnly: true
+                }
+              }}
+              helperText= 'Змінюється тільки через операції приходу / списання'
+              sx={{ bgcolor: 'action.hover' }}
             />
 
             <TextField
@@ -409,8 +460,8 @@ export const AdminPage = ({
       </Typography>
       <Paper sx={{ p: 2, maxWidth: 600, mx: 'auto'}}>
         <Stack spacing={2}>
-          {sortedProducts.map((product: any) => {
-            const isDisabled = cartItems.some((item: any) => item.id === product.id)
+          {Array.from(new Map(sortedProducts.map(p => [p.id, p])).values()).map((product: any) => {
+              const isDisabled = cartItems.some((item: any) => item.id === product.id)
             return (
               <Box
                 key={product.id}
@@ -428,10 +479,9 @@ export const AdminPage = ({
                     alt=''
                     style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }}
                   />
-                  <Typography sx={{ color: isDisabled ? 'text-secondary' : 'text-primary' }}>
-                    {product.title} ({product.price} грн)
-                    {isDisabled && <span style={{ color: '#ed6c02', fontSize: '0.8 rem', marginLeft: '8px'}}>🛒 зарезервовано</span>}
-                  </Typography>
+                  <Typography sx={{ color: (product.stock || 0) <= 5 ? 'error.main' : 'text.primary' }}>
+                    {product.title} - <strong>{product.stock || 0} шт. </strong> ({product.price} грн)
+                 </Typography>
                 </Box>
 
                 <Typography sx={{ opacity: isDisabled ? 0.5 : 1 }}>
@@ -465,12 +515,64 @@ export const AdminPage = ({
                 >
                   Видалити
                 </Button>
+
+                <IconButton
+                  size='small'
+                  color="success"
+                  onClick = {() => {
+                    setSelectProductForStock(product)
+                    setIsStockDialogOpen(true)
+                  }}
+                >
+                  <Box component='span' sx={{ fontSize: '1.7rem'}}>+</Box>
+                </IconButton>
               </Box>
             )
           })}
         </Stack>
 
       </Paper>
+      <Dialog open={isStockDialogOpen} onClose={() => setIsStockDialogOpen(false)}>
+        <DialogTitle>📦 Оновлення складу: {selectProductForStock?.title}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={3} sx={{ mt: 1 }}>
+            <TextField 
+              label='Кількість (+ прихід, - списання'
+              type='number'
+              fullWidth
+              value={stockChangeAmount}
+              onChange={(e) => setStockChangeAmount(Number(e.target.value))}
+            />
+            <TextField 
+              label='Ціна закупівлі (за 1 шт)'
+              type='number'
+              fullWidth
+              value={purchasePrice}
+              onChange={(e) => setPurchasePrice(Number(e.target.value))}
+              helperText='Скільки заплачено нашому постачальничку'
+            />
+            <TextField 
+              label='Коментар'
+              fullWidth
+              value={stockNote}
+              onChange={(e) => setStockNote(e.target.value)}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsStockDialogOpen(false)}>Скасувати</Button>
+          <Button
+            variant="contained"
+            onClick={async () => {
+              await handleStockUpdate(selectProductForStock, stockChangeAmount, stockNote, purchasePrice)
+              setIsStockDialogOpen(false)
+              setStockChangeAmount(1)
+            }}
+          >
+            Підтвердити
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   )
 }

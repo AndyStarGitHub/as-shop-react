@@ -58,6 +58,7 @@ export const CartProvider = ({ children }: {children: ReactNode }) => {
     const [isOrderModalOpen, setIsOrderModalOpen] = useState(false)
 
     useEffect(() => {
+        console.log('Зберігаю в кошик: ', cartItems)
         localStorage.setItem('as_shop_cart', JSON.stringify(cartItems))
     }, [cartItems])
 

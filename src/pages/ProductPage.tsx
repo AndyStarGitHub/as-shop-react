@@ -58,11 +58,15 @@ export const ProductPage = ({ products, onBuy }: any) => {
 
             <Button
               variant="contained"
-              size='large'
               fullWidth
-              onClick={() => onBuy(product)}
+              onClick={onBuy}
+              disabled={product.stock !== undefined && product.stock <= 0}
+              sx={{ mt: 2 }}
             >
-                Додати в кошичок
+              {product.stock !== undefined && product.stock <= 0
+                ? 'Немає продуктика в наявності'
+                : 'Додати до кошика'
+              }
             </Button>
           </Grid>
         </Grid>

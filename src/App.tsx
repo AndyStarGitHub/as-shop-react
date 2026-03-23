@@ -16,6 +16,7 @@ import {
   createTheme,
   CssBaseline,
 } from '@mui/material';
+import ListAltIcon from '@mui/icons-material/ListAlt';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import Tooltip from '@mui/material/Tooltip';
@@ -37,11 +38,10 @@ import { LoginPage } from './pages/LoginPage';
 import { ProductSkeleton } from './components/ProductSkeleton';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { useCart } from './context/CartContext';
-// import { useCategories } from './context/CategoriesContext';
 import { useProducts } from './context/ProductContext';
+import { InventoryLogsPage } from './pages/InventoryLogsPage';
 
 function App() {
-  // const categories = useCategories()
   const { products, isLoading: isProductLoading } = useProducts()
   const { cartItems, dispatch, totalPrice, totalQuantity } = useCart()
   const [user, setUser] = useState<User | null>(null)
@@ -92,17 +92,6 @@ function App() {
     setOpenSnackBar(true)
     dispatch({ type: 'ADD_ITEM', product: good })
   }
-
-  // const removeFromCart = (idToRemove: string) => {
-  //   const isConfirmed = window.confirm('Ви впевнені?')
-  //   if (isConfirmed) {
-  //     dispatch({ type: 'REMOVE_ITEM', id: idToRemove })
-  //   }
-  // }
-
-  // const changeQuantity = (id: string, delta: number) => {
-  //   dispatch({ type: 'UPDATE_QUANTITY', id, delta})
-  // }
 
   const theme = createTheme({
     palette: {
@@ -215,6 +204,14 @@ function App() {
               )}
 
               {user && (
+                <IconButton component={Link} to='inventory-logs' color='inherit'>
+                  <Tooltip title='Журналик складу'>
+                    <ListAltIcon />
+                  </Tooltip>
+                </IconButton>
+              )}
+
+              {user && (
                 <IconButton onClick={handleLogout} color='inherit' sx={{ ml: 1 }}>
                   <Tooltip title='Вийти'>
                     <LogoutIcon />
@@ -262,6 +259,7 @@ function App() {
               <Route path='/orders' element={user ? <OrdersPage /> : <LoginPage />} />
               <Route path='/login'  element={<LoginPage />} />
               <Route path='/analytics' element={ user ? <AnalyticsPage orders={orders} /> : <LoginPage /> } />
+              <Route path='/inventory-logs' element={<InventoryLogsPage />} />
             </Routes>
           </Container>
           <Footer />

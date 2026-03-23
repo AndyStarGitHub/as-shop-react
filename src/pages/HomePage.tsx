@@ -5,10 +5,6 @@ import type { Category } from "../types"
 import type { Product } from '../types'
 import { useProducts } from "../context/ProductContext"
 
-// interface AnalyticsProps {
-//   orders: any[]
-// }
-
 export const HomePage = ({ 
     onBuy, 
     showExpensive, 
@@ -141,19 +137,19 @@ export const HomePage = ({
         {showExpensive ? 'Показати всі' : 'Тільки дорогі'}
       </Button>
     </Stack>
-      <Grid container spacing={3}>
-        {sortedProducts.length > 0 ? (
-            sortedProducts.map((p: any) => (
-              <Grid key={p.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-                <ProductItem product={p} onBuy={() => onBuy(p)}/>
-              </Grid>
-            ))
-        ) : (
-            <Typography sx={{ textAlign: 'center', width: '100%', mt: 4 }}>
-                {isLoading ? 'Завантаження товарів...' : 'Нічого не знайдено за вашим запитом 😢'}
-            </Typography>
-        )}
-      </Grid>
+    <Grid container spacing={3}>
+      {sortedProducts.length > 0 ? (
+        Array.from(new Map(sortedProducts.map(p => [p.id, p])).values()).map((p: any) => (
+          <Grid key={p.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+            <ProductItem product={p} onBuy={() => onBuy(p)} />
+          </Grid>
+        ))
+      ) : (
+        <Typography sx={{ textAlign: 'center', width: '100%', mt: 4 }}>
+          {isLoading ? 'Завантаження товарів...' : 'Нічого не знайдено за вашим запитом 😢'}
+        </Typography>
+      )}
+    </Grid>
     </Container>
   )
 }

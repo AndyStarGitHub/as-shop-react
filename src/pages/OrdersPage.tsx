@@ -1,9 +1,10 @@
-import { collection, deleteDoc, onSnapshot, orderBy, query, updateDoc, doc } from "firebase/firestore"
+import { collection, deleteDoc, onSnapshot, orderBy, query, doc, runTransaction } from "firebase/firestore"
 import { useEffect, useState } from "react"
 import { db } from "../firebase"
 import { Box, Button, Chip, Container, Grid, InputAdornment, Paper, Stack, Tab, Tabs, TextField, Typography } from "@mui/material"
 import SearchIcon from '@mui/icons-material/Search'
 import { Dashboard } from "../components/Dashboard"
+// import { Product } from '../types'
 
 export const OrdersPage = () => {
   const [orders, setOrders] = useState<any[]>([])
@@ -17,20 +18,6 @@ export const OrdersPage = () => {
     const matchesSearch = customerName.includes(searchTerm.toLocaleLowerCase()) || customerPhone.includes(searchTerm)
     return matchesSearch && matchesStatus
   })
-
-  // const handlePrint = (orderId: string) => {
-  //   const element = document.getElementById(`order-${orderId}`)
-  //   if (element) {
-  //     element.classList.add('print-section')
-  //     setTimeout(() => {
-  //       window.print()
-  //       element.classList.remove('print-section')
-  //     }, 100)  
-
-  //   } else {
-  //     console.error('Не вдалось знайти елемент для друку')
-  //   }
-  // }
 
   const handlePrint = (orderId: string) => {
     const order = orders.find(o => o.id === orderId);
@@ -152,10 +139,65 @@ export const OrdersPage = () => {
     return () => unsubscribe()
   }, [])
 
-  const markAsDone = async (orderId: string) => {
-    const orderRef = doc(db, 'orders', orderId)
-    await updateDoc(orderRef, { status: 'completed' })
+
+const markAsDone = async (orderId: string) => { // Передаємо ID
+  const order = orders.find(o => o.id === orderId); // Знаходимо замовлення в масиві
+  if (!order) return;
+
+  try {
+    await runTransaction(db, async (transaction) => {
+      // 1. УСІ ЧИТАННЯ (READS)
+      const orderRef = doc(db, 'orders', orderId);
+      const orderSnap = await transaction.get(orderRef);
+
+      if (!orderSnap.exists()) throw "Замовлення не знайдено!";
+      if (orderSnap.data().status === 'completed') throw "Вже виконано!";
+
+      const items = order.items || [];
+      const productSnapshots = [];
+
+      // Читаємо кожен товар із замовлення
+      for (const item of items) {
+        const pRef = doc(db, 'products', item.id);
+        const pSnap = await transaction.get(pRef);
+        if (pSnap.exists()) {
+          productSnapshots.push({ ref: pRef, snap: pSnap, item });
+        }
+      }
+
+      // 2. УСІ ЗАПИСИ (WRITES)
+      productSnapshots.forEach(({ ref, snap, item }) => {
+        const currentStock = snap.data().stock || 0;
+        const newStock = currentStock - item.quantity;
+
+        if (newStock < 0) {
+          throw `Недостатньо ${item.title}! (Є: ${currentStock})`;
+        }
+
+        // Оновлюємо склад
+        transaction.update(ref, { stock: newStock });
+
+        // Записуємо в Журнал операцій (inventory_logs)
+        const logRef = doc(collection(db, 'inventory_logs'));
+        transaction.set(logRef, {
+          productId: item.id,
+          productTitle: item.title,
+          amount: -item.quantity,
+          type: 'outcome',
+          note: `Продаж (Замовлення №${order.id.slice(0, 5)})`,
+          createdAt: new Date()
+        });
+      });
+
+      transaction.update(orderRef, { status: 'completed' });
+    });
+
+    console.log("Склад оновлено, замовлення закрито! 🚀");
+  } catch (error) {
+    console.error('Помилочка при виконанні завданнячка', error);
+    alert(`Помилочка: ${error}`);
   }
+};
   
   const deleteOrder = async (orderId: string) => {
     if (window.confirm('Видалити замовлення з бази?')) {
@@ -325,9 +367,11 @@ export const OrdersPage = () => {
                       Виконати
                     </Button>
                   )}
-                  <Button variant="outlined" color='error' size="small" onClick={() => deleteOrder(order.id)}>
-                    Видалити
-                  </Button>
+                  {order.status === 'new' && (
+                    <Button variant="outlined" color='error' size="small" onClick={() => deleteOrder(order.id)}>
+                      Видалити
+                    </Button>
+                  )}
                 </Stack>
               </Box>
             </Box>
