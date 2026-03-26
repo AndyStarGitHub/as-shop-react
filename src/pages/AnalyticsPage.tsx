@@ -6,6 +6,12 @@ import {
     Grid, 
     Paper, 
     Stack, 
+    Table, 
+    TableBody, 
+    TableCell, 
+    TableContainer, 
+    TableHead, 
+    TableRow, 
     TextField, 
     Typography 
 } from "@mui/material"
@@ -38,13 +44,22 @@ export const AnalyticsPage = ({ orders }: AnalyticsProps) => {
   const [endDate, setEndDate] = useState(today)
   const [onlyCompleted, setOnlyCompleted] = useState(false)
   const [inventoryLogs, setInventoryLogs] = useState<any[]>([])
+
   useEffect(() => {
-    const q = query(collection(db, 'invenrory_logs'), orderBy('createdAt', 'desc'))
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-      setInventoryLogs(logs)
-    })
-  }, [])
+  // Тимчасово прибираємо orderBy, щоб побачити чи прийдуть документи взагалі
+  const q = query(collection(db, 'inventory_logs')) 
+  
+  const unsubscribe = onSnapshot(q, (snapshot) => {
+    console.log("snapshot docs length:", snapshot.docs.length); // МАЄ БУТИ БІЛЬШЕ 0
+    const logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    console.log("Масив logs оновлено:", logs);
+    setInventoryLogs(logs)
+  }, (err) => {
+    console.error("Помилка підписки:", err);
+  })
+  
+  return () => unsubscribe()
+}, [])
 
   const filteredOrders = orders.filter(order => {
     if (!order.createdAt) return false
@@ -166,6 +181,25 @@ const searchedProduct = products.find(p =>
   p.title.toLocaleLowerCase() === productSearchQuery.toLocaleLowerCase().trim()
 )
 
+interface Transaction {
+  amount: number;
+  before: number;
+  after: number;
+  type: 'income' | 'outcome';
+  createdAt: {
+    seconds: number;
+    toDate: () => Date
+  }
+}
+
+interface DailyMovement {
+  date: string;
+  opening: number;
+  income: number;
+  outcome: number;
+  closing: number;
+}
+
 const productOrderStats = filteredOrders.reduce((acc, order) => {
   const item = order.items.find((i: any) => i.title.toLowerCase() === productSearchQuery.toLowerCase().trim())
   if (item) {
@@ -174,6 +208,65 @@ const productOrderStats = filteredOrders.reduce((acc, order) => {
   }
   return acc
 }, {count: 0, revenue: 0})
+
+const getInventoryMovement = (transactions: Transaction[]): DailyMovement[] => {
+  const dailyReport: Record<string, DailyMovement> = {}
+  const sorted = [...transactions].sort((a, b) => a.createdAt.seconds - b.createdAt.seconds)
+
+  sorted.forEach((tx) => {
+    const dateKey = tx.createdAt.toDate().toLocaleDateString()
+
+    if (!dailyReport[dateKey]) {
+      dailyReport[dateKey] = {
+        date: dateKey,
+        opening: tx.before,
+        income: 0,
+        outcome: 0,
+        closing: tx.after
+      }
+    }
+
+    if (tx.type === 'income') {
+      dailyReport[dateKey].income += tx.amount
+    } else if (tx.type === 'outcome') {
+      dailyReport[dateKey].outcome += tx.amount
+    }
+
+    dailyReport[dateKey].closing = tx.after
+  })
+  return Object.values(dailyReport)
+}
+
+// 1. Оновлена фільтрація: тепер по ID ТА по вибраних датах
+const filteredLogs = inventoryLogs.filter(log => {
+  // Перевірка 1: Чи це той самий товар, який ми шукаємо?
+  const isRightProduct = searchedProduct && log.productId === searchedProduct.id;
+  
+  // Перевірка 2: Чи входить дата лога в обраний діапазон?
+  // (перетворюємо дату лога у формат '2026-03-26')
+  const logDate = log.createdAt?.toDate ? log.createdAt.toDate().toISOString().split('T')[0] : "";
+  const isWithinDates = logDate >= startDate && logDate <= endDate;
+
+  return isRightProduct && isWithinDates;
+});
+  
+
+// 2. Сортуємо логи від найстаріших до найновіших для правильного звіту
+// (В useEffect вони приходять 'desc', а нам треба 'asc' для хронології руху)
+const sortedLogsForReport = [...filteredLogs].sort((a, b) => 
+  (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0)
+);
+
+// 3. Формуємо дані для таблиці
+const movementData = getInventoryMovement(sortedLogsForReport as unknown as Transaction[]);
+
+console.log("Шукаємо товар:", productSearchQuery);
+console.log("Знайдений товар (об'єкт):", searchedProduct);
+console.log("Кількість усіх логів у базі:", inventoryLogs.length);
+if (searchedProduct) {
+  const checkLogs = inventoryLogs.filter(log => log.productId === searchedProduct.id);
+  console.log(`Логів для ID ${searchedProduct.id}:`, checkLogs.length);
+}
 
 return (
   <Container sx={{ mt: 4, mb: 4 }}>
@@ -472,8 +565,45 @@ return (
 
           </Stack>
         </Grid>
-      </Grid>
+      </Grid>    
     </Paper>    
+
+    <Typography variant="h5" sx={{ mt: 6, mb: 2, fontWeight: 'bold' }}>
+      📦 Рух товарів по днях (Склад)
+    </Typography>
+    <TableContainer component={Paper} sx={{ mb: 4, boxShadow: 2 }}>
+      <Table size="small">
+        <TableHead sx={{ bgcolor: 'action.hover' }}>
+          <TableRow>
+            <TableCell><b>Дата</b></TableCell>
+            <TableCell align="right"><b>Початок</b></TableCell>
+            <TableCell align="right" sx={{ color: 'success.main' }}><b>Прихід</b></TableCell>
+            <TableCell align="right" sx={{ color: 'error.main' }}><b>Розхід</b></TableCell>
+            <TableCell align="right"><b>Залишок</b></TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {movementData.length > 0 ? (
+            movementData.map((row) => (
+              <TableRow key={row.date} hover>
+                <TableCell>{row.date}</TableCell>
+                <TableCell align="right">{row.opening}</TableCell>
+                <TableCell align="right" sx={{ color: 'success.dark' }}>+{row.income}</TableCell>
+                <TableCell align="right" sx={{ color: 'error.dark' }}>-{row.outcome}</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 'bold' }}>{row.closing}</TableCell>
+              </TableRow>
+            ))
+          ) : (
+            <TableRow>
+              <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
+                <Typography color="text.secondary">Логи переміщень порожні</Typography>
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </TableContainer>
+
   </Container>
   )
 }
