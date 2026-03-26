@@ -37,7 +37,13 @@ export const CartPage = () => {
               <div style={{ display: 'flex', alignItems: 'center', marginRight: '40px' }}>
                 <Button size='small' onClick={() => handleUpdate(item.id, -1)}>-</Button>
                 <Typography sx={{ mx: 2 }}>{item.quantity}</Typography>
-                <Button size='small' onClick={() => handleUpdate(item.id, 1)}>+</Button>
+                <Button 
+                  size='small' 
+                  onClick={() => handleUpdate(item.id, 1)}
+                  disabled={item.quantity >= (item.stock ?? 999)}
+                >
+                  +
+                </Button>
               </div>
             </ListItem>
           ))}

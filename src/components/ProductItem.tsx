@@ -1,4 +1,4 @@
-import { Button, Card, CardActions, CardContent, CardMedia, Typography } from "@mui/material";
+import { Box, Button, Card, CardActions, CardContent, CardMedia, Typography } from "@mui/material";
 import type { Product } from "../types";
 import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
 import { useNavigate } from "react-router-dom";
@@ -11,11 +11,36 @@ interface ProductProps{
 
 export const ProductItem = ({ product, onBuy }: ProductProps) => {
   const navigate = useNavigate()
+  const isOutOfStock = product.stock !== undefined && product.stock <= 0
   return (
     <Card 
-      sx={{ cursor: 'pointer' }} 
-      onClick={() => navigate(`/product/${product.id}`)}
+      sx={{ 
+        cursor: isOutOfStock ? 'default' : 'pointer', 
+        opacity: isOutOfStock ? 0.6 : 1,
+        filter: isOutOfStock ? 'grayscale(0.5)' : 'none ',
+        position: 'relative'
+      }} 
+      onClick={() => !isOutOfStock && navigate(`/product/${product.id}`)}
     >
+      {
+        isOutOfStock && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 10,
+              left: 10,
+              zIndex: 2,
+              bgColor: 'error.main',
+              color: 'white',
+              px: 1,
+              borderRadius: 1,
+              fontSize: '0.7rem'
+            }}
+          >
+            НЕМАЄ В НАЯВНОСТІ
+          </Box>
+        )
+      }
       <CardMedia 
         component='img'
         height='200'
@@ -46,8 +71,9 @@ export const ProductItem = ({ product, onBuy }: ProductProps) => {
             e.stopPropagation()
             onBuy(product)
           }}
+          color={isOutOfStock ? 'inherit' : 'primary'}
         >
-          Купити
+          {isOutOfStock ? 'Очікується' : 'Купити'}
         </Button>
       </CardActions>
     </Card>

@@ -17,12 +17,21 @@ function CartReducer(state: any[], action: CartAction): any[] {
   switch (action.type) {
     case 'ADD_ITEM':
       const existing = state.find(item => item.id === action.product.id)
+      const maxAvailable = action.product.stock ?? 999
       if (existing) {
+        if (existing.quantity > maxAvailable) {
+          alert(`Вибачте, на складі лише ${maxAvailable} шт. 📦`)
+          return state
+        }
         return state.map(item =>
           item.id === action.product.id
-            ? {...item, quantity: (item.quantity || 1) + 1}
+            ? { ...item, quantity: item.quantity + 1 }
             : item
         )
+        if (maxAvailable <= 0) {
+          alert('Цього товару немає в наявності 😢')
+          return state
+        }
       }
       return [...state, {...action.product, quantity: 1 }]
 
@@ -39,6 +48,13 @@ function CartReducer(state: any[], action: CartAction): any[] {
       return state.map(item => {
         if (item.id === action.id) {
           const newQty = (item.quantity || 1) + action.delta
+          const stockLimit = item.stock ?? 999
+
+          if (action.delta > 0 && newQty > stockLimit) {
+            alert(`Більше немає! На складі всього ${stockLimit} шт. 😉`);
+            return item;
+          }
+
           return { ...item, quantity: newQty < 1 ? 1 : newQty}
         }
         return item

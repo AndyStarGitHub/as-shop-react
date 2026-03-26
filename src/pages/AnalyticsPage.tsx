@@ -9,10 +9,12 @@ import {
     TextField, 
     Typography 
 } from "@mui/material"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { CartesianGrid, Cell, Line, LineChart, Pie, PieChart, Tooltip, XAxis, YAxis } from "recharts"
 import { useProducts } from "../context/ProductContext"
 import { useCategories } from "../context/CategoriesContext"
+import { collection, onSnapshot, orderBy, query } from "firebase/firestore"
+import { db } from "../firebase"
 
 interface AnalyticsProps {
   orders: any[]
@@ -35,6 +37,14 @@ export const AnalyticsPage = ({ orders }: AnalyticsProps) => {
   const [startDate, setStartDate] = useState(monthAgo)
   const [endDate, setEndDate] = useState(today)
   const [onlyCompleted, setOnlyCompleted] = useState(false)
+  const [inventoryLogs, setInventoryLogs] = useState<any[]>([])
+  useEffect(() => {
+    const q = query(collection(db, 'invenrory_logs'), orderBy('createdAt', 'desc'))
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+      setInventoryLogs(logs)
+    })
+  }, [])
 
   const filteredOrders = orders.filter(order => {
     if (!order.createdAt) return false
@@ -52,17 +62,42 @@ const avgCheck = ordersCount > 0 ? (totalRevenue / ordersCount).toFixed(2) : 0
 
 const productStats = filteredOrders.reduce((acc: any, order) => {
   order.items.forEach((item: any) => {
-    if (acc[item.title]) {
-      acc[item.title] += item.quantity
-    } else {
-        acc[item.title] = item.quantity
+    const itemLogs = inventoryLogs
+      .filter(log => log.productId === item.id && log.type === 'income')
+      .sort((a, b) => {
+        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : 0
+        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : 0
+        return dateB - dateA
+      })
+    const lastIncomeLog = itemLogs[0]
+    const buyPrice = lastIncomeLog?.purchasePrice || 0
+    const sellPrice = item.price || 0
+    const profit = (sellPrice - buyPrice) * item.quantity
+
+    if (!acc[item.title]) {
+      acc[item.title] = { count: 0, profit: 0 };
     }
+    acc[item.title].count += item.quantity;
+    acc[item.title].profit += profit;
   })
   return acc
 }, {})
 
+
+const topProfitable = Object.entries(productStats)
+  .map(([name, data]: [string, any]) => ({
+    name,
+    profit: data.profit,
+    count: data.count
+  }))
+  .sort((a, b) => b.profit - a.profit)
+  .slice(0, 3)
+
 const topProducts = Object.entries(productStats)
-  .map(([name, count]) => ({ name, count: count as number}))
+  .map(([name, data]: [string, any]) => ({ 
+    name, 
+    count: data.count
+  }))
   .sort((a, b) => b.count - a.count)
   .slice(0, 5)
 
@@ -392,11 +427,53 @@ return (
                 )}
                 </Stack>    
             </Paper>
+
+            <Typography variant="h5" sx={{ mt: 6, mb: 2, fontWeight: 'bold', color: 'success.main' }}>
+              💰 ТОП-3 за чистим прибутком
+            </Typography>
+            <Grid container spacing={2} sx={{ mb: 4 }}>
+              {topProfitable.map((product, index) => (
+                <Grid size={{ xs: 12, md: 4 }} key={product.name}>
+                  <Paper
+                    sx={{ 
+                      p: 3,
+                      textAlign: 'center',
+                      border: '2px solid',
+                      borderColor: index === 0 ? 'warning.main' : 'success.light',
+                      position: 'relative',
+                      overflow: 'hidden'
+                    }}
+                    >
+                      {index === 0 && (
+                        <Box sx={{
+                          position: 'absolute',
+                          top: 0,
+                          right: 0,
+                          bgcolor: 'warning.main',
+                          color: 'white',
+                          px: 1,
+                          borderRadius: '0 0 0 8px',
+                          fontSize: '0.7rem'
+                        }}>
+                          LIDER 🏆
+                        </Box>
+                      )}
+
+                    <Typography variant="subtitle2" color='text.secondary'>#{index + 1}</Typography>
+                    <Typography variant="h6" noWrap sx={{ mb: 1 }}>{product.name}</Typography>
+                    <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'success.dark'}}>
+                      +{product.profit.toLocaleString()} грн
+                    </Typography>
+                    <Typography variant="caption">Продано: {product.count} шт.</Typography>
+                  </Paper>
+                </Grid>
+              ))}
+            </Grid>
+
           </Stack>
         </Grid>
       </Grid>
     </Paper>    
   </Container>
   )
-
 }

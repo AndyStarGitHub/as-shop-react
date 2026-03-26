@@ -4,6 +4,7 @@ import { useCategories } from "../context/CategoriesContext"
 import type { Category } from "../types"
 import type { Product } from '../types'
 import { useProducts } from "../context/ProductContext"
+import { useState } from "react"
 
 export const HomePage = ({ 
     onBuy, 
@@ -17,6 +18,7 @@ export const HomePage = ({
     setCurrentCategory,
     orders
 }: any) => {
+  const [onlyInStock, setOnlyInStock] = useState(false)
   const { products, isLoading } = useProducts() as { products: Product[], isLoading: boolean}
   console.log('Продукти з контексту на головній сторінці: ', products)
   const { categories } = useCategories()
@@ -25,7 +27,8 @@ export const HomePage = ({
     const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesPrice = showExpensive ? p.price > 400 : true
     const matchesCategory = currentCategory === 'all' || p.category === currentCategory
-    return matchesSearch && matchesPrice && matchesCategory
+    const matchesStock = onlyInStock ? (p.stock || 0) > 0 : true
+    return matchesSearch && matchesPrice && matchesCategory && matchesStock
   })
 
   const sortedProducts = [...filteredProducts].sort((a, b) => {
@@ -136,6 +139,16 @@ export const HomePage = ({
       >
         {showExpensive ? 'Показати всі' : 'Тільки дорогі'}
       </Button>
+
+      <Button
+        variant={onlyInStock ? 'contained' : 'outlined'}
+        color="success"
+        sx={{ height: '56px', whiteSpace: 'nowrap', px: 3 }}
+        onClick={() => setOnlyInStock(!onlyInStock) }
+      >
+        {onlyInStock ? 'Всі товари' : 'Тільки в наявності'}
+      </Button>
+
     </Stack>
     <Grid container spacing={3}>
       {sortedProducts.length > 0 ? (
